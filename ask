@@ -1,0 +1,12 @@
+ curl -X POST 'http://llama-service-llama318b.apps.dagocp.rdc60.lan/v1/chat/completions'   -H 'accept: application/json'   -H 'Content-Type: application/json'   -d '{
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Write an essay about the wonders of GPU computing."
+      }
+    ],
+    "max_tokens": 1500,
+    "stream": false
+  }'
+
