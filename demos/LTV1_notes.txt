@@ -1,0 +1,42 @@
+hol08-t02@hol.enablement.local@HOL-UBNT-AI-02:~$ cat /etc/init.d/docker_install.sh 
+#!/bin/bash
+
+##Package Cleanup##
+sudo apt autoremove -y
+sudo apt-get update
+
+##Nvidia Container Toolkit Install##
+sudo apt install -y curl
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update
+sudo apt-get install -y nvidia-container-toolkit
+
+##Install Docker## 
+# Add Docker's official GPG key:
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+##Configured Docker with Nvidia Container Toolkit## 
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+##Copy Lab Files to HOL Desktop directory##
+wget -P /home/*hol*/Desktop -r -l1 --no-parent -A pdf --no-directories http://holstaging01.hol.enablement.local/deployment/AI-Lab-Documents/
+chown $SUDO_USER /home/*hol*/Desktop/*.pdf
+
+echo "############################################################"
+echo "##### Lab Environment has been successfully configured #####"
+echo "############################################################"
+hol08-t02@hol.enablement.local@HOL-UBNT-AI-02:~$ 
