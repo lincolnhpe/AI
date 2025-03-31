@@ -1,0 +1,493 @@
+#enable SSH to your cluster node for debugging (optional)
+
+# Updated NFS server /etc/ecports file 
+
+[root@rhelservices createiso]# cat /etc/exports
+/home/nfs *(rw,sync,no_root_squash,no_subtree_check,insecure)
+/home/nvidia *(rw,sync,no_root_squash,no_subtree_check,insecure)
+[root@rhelservices createiso]# exportfs -ra
+[root@rhelservices createiso]# exportfs
+/home/nfs       <world>
+/home/nvidia    <world>
+
+# Create Persistent Volumes on ocp cluster using these NFS mounts 
+
+# YAML fle nfs_pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv0001-nfs
+spec:
+  capacity:
+    storage: 250Gi
+  accessModes:
+  - ReadWriteOnce
+  nfs:
+    path: /home/nfs #NFS Share from exports
+    server: 10.0.31.100 #NFS Server IP 
+  persistentVolumeReclaimPolicy: Retain
+
+# [root@rhelservices createiso]# oc apply -f nfs_pv.yaml
+  persistentvolume/pv0001-nfs created
+
+# Verify PV is created, repeat for pv0002-nfs
+
+# YAMl file for nfs2_pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv0002-nfs
+spec:
+  capacity:
+    storage: 250Gi
+  accessModes:
+  - ReadWriteMany
+  nfs:
+    path: /home/nvidia
+    server: 10.0.31.100
+  persistentVolumeReclaimPolicy: Retain
+
+# [root@rhelservices createiso]# oc apply -f nfs2_pv.yaml
+persistentvolume/pv0002-nfs created
+
+# Build Image Registry
+ensure image registry operator is installed using GUI or with cmd
+ oc get pods -n openshift-image-registry
+ oc get configs.imageregistry.operator.openshift.io/cluster -o yaml
+#The Image Registry Operator may initially be set to Removed. Change it to Managed:
+
+ oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}'
+
+#Configure Storage Using Your PVC:
+#YAML FILE registry-create-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-storage
+  namespace: openshift-image-registry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 250Gi
+  volumeName: pv0001-nfs
+  storageClassName: ""
+  volumeMode: Filesystem
+
+# [root@rhelservices createiso]# oc apply -f registry-create-pvc.yaml
+# persistentvolumeclaim/registry-storage created 
+
+#Assuming you have a PVC named registry-storage, patch the configuration to use it:
+ oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"pvc":{"claim":"registry-storage"}}}}'
+#
+#
+#Enable Default Route (Optional):
+#If you want external access to your registry, enable the default route:
+ oc patch configs.imageregistry.operator.openshift.io/cluster --type merge --patch '{"spec":{"defaultRoute":true}}'
+
+# Install NODE FEATURE DISCOVERY OPERATOR 
+# Install NVIDIA Operator, ensure VM is not using secure boot, we will be creating an unsigned driver.
+# version 24.6.2
+
+# Create PVC for NVIDIA to use storage 
+#  nvidia-pvc.yaml FILE 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nvidia-gpu-pvc
+  namespace: nvidia-gpu-operator  # Change this to the appropriate namespace if needed
+spec:
+  accessModes:
+    - ReadWriteMany  # Adjust based on your PV's access mode
+  resources:
+    requests:
+      storage: 250Gi  # Adjust the size according to your PV capacity
+  volumeName: pv0002-nfs  # Specify the name of your existing PV
+  storageClassName: ""  # Specify the NFS storage class
+
+# apply PVC for NVIDIA 
+  [root@rhelservices createiso]# oc apply -f nvidia-pvc.yaml
+ persistentvolumeclaim/nvidia-gpu-pvc created
+
+# Create NVIDIA Cluster POLICY in GUI, under NVIDIA OPERATOR TABS, No need to create drive as it will do it. 
+# MAKE SURE you are working in your project directory 
+# oc project nvidia-gpu-operator
+#
+# Installing NVIDIA NIM, I went online and tried a few of them and settled on a smaller pretrained model due to my gpu size. I used https://build.nvidia.com/meta/llama-3_1-8b-instruct. Once you decide on the model you want review the Docker tab (it doesn't work for OCP but it does give you the pull ink to use. I used nvcr.io/nim/meta/llama-3.1-8b-instruct:latest in the deployment yaml file I created for the NIM. It sure would be nice if they gave a template to work from. Below is my deployment YAML file. 
+# 
+# llama318b.yaml
+#
+# apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama318b-deployment
+  namespace: nvidia-gpu-operator  # Replace with your target namespace, I used existing nvidia-gpu-operator namespace  because I figured the gpu driver would be available.
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llama318b
+  template:
+    metadata:
+      labels:
+        app: llama318b
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: gpuworker1.psdc.lan  # Ensure it runs on the specific node
+      imagePullSecrets:
+      - name: nvsecret  # Reference to the created secret
+      containers:
+      - name: llama318b-container
+        image: nvcr.io/nim/meta/llama-3.1-8b-instruct:latest # Pull Image 
+        resources:
+          limits:
+            nvidia.com/gpu: 1  # Request one GPU
+          requests:
+            nvidia.com/gpu: 1  # Request one GPU
+
+# install it. using this command 
+# oc apply -f llama318b.yaml
+# Installation will fail initially because we have a couple of things we need to do now that the Deployment has been created. 
+# First, you need to create a secret with the name specified in your deploymnt YAMl file (ours is nvsecret). This allows you to pull from the NVIDIA repo. This is easy to do in the browser of openshift or you can use a yaml file. I used the browser - go to Adminstrator pane, then Workloads/secrets. change to nvidia-gpu-operator namespace and creat a new secret. select pull secret and for user type in $oauthtoken and password in an API key you need to make with your nvidia account. Once you have the user and password saved, you will click (Add Secret to workload) choose llama318b-deployment. Now in the browser left side menu select  deployments and look for your deployment: llama318b-deployment
+#llama318b-deployment - Right click on it and select edit deployment, then set an ENV Variable NGC_API_KEY=YOUR_NVIDIA_API_KEY - the installs seems to want this set in the environment when the container pulls its image. 
+
+# Your pod should install successfully. Afte rit installs it will tell you it has an address of 0.0.0.0:8000 - this is not how you will access it though. 
+#  Now we need to create a service and expose the service so we can access it outside the cluster. 
+#
+
+
+# Here is my YAML file I used to create my service, this redirects the ports from :8000 to :80 and registers the service with a name called "llama318b"
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-service
+  labels:
+    app: llama318b
+spec:
+  type: ClusterIP  # This allows external access through the node's IP
+  ports:
+    - port: 80          # The port that will be exposed
+      targetPort: 8000    # The port on the container to forward traffic to
+      protocol: TCP
+      # nodePort is optional; if not specified, OpenShift will assign one automatically.
+      #nodePort: 30000      # Optional: Specify a custom NodePort (within range 30000-32767)
+  selector:
+    app: llama318b             # Ensure this matches your deployment's labels
+
+# APPLY IT now
+# oc apply -f llama-svc.yaml
+
+# check to make sure your service has an endpoint 
+[root@rhelservices createiso]# oc get endpoints llama-service
+NAME            ENDPOINTS           AGE
+llama-service   10.130.1.148:8000   173m
+
+# # check to make sure it was created 
+[root@rhelservices new]# oc get svc
+NAME                          TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+gpu-operator                  ClusterIP   172.30.182.135   <none>        8080/TCP   17h
+llama-service                 ClusterIP   172.30.60.4      <none>        80/TCP     13m
+nvidia-dcgm                   ClusterIP   172.30.43.29     <none>        5555/TCP   17h
+nvidia-dcgm-exporter          ClusterIP   172.30.203.0     <none>        9400/TCP   17h
+nvidia-node-status-exporter   ClusterIP   172.30.37.119    <none>        8000/TCP   17h
+
+# now we should need to expose it to outside the cluster
+# oc expose service/llama-service  
+#verify with 
+#oc get routes
+#Here is the curl command to access it - 
+
+curl -X 'POST'   'http://llama-service-nvidia-gpu-operator.apps.ocp.psdc.lan/v1/chat/completions'   -H 'accept: application/json'   -H 'Content-Type: application/json'   -d '{
+      "model": "meta/llama-3.1-8b-instruct",
+      "messages": [{"role":"user", "content":"Write a limerick about the wonders of GPU computing."}],
+      "max_tokens": 64
+  }'
+
+
+# Here was the output of the command as you can see it gave us a limerick but it looks like crap. 
+#
+{"id":"chat-8bc1e088bbe24e959dd75ba99f639c65","object":"chat.completion","created":1734054417,"model":"meta/llama-3.1-8b-instruct","choices":[{"index":0,"message":{"role":"assistant","content":"Here is a limerick about GPU computing:\n\nThere once were GPUs so fine,\nProcessors fast, parallel in line.\nThey computed with pace,\nAccelerating the space,\nMaking complex tasks truly divine."},"logprobs":null,"finish_reason":"stop","stop_reason":null}],"usage":{"prompt_tokens":22,"total_tokens":63,"completion_tokens":41},"prompt_logprobs":null}
+
+
+# becuase it looks like crap i started a webserver on one of my vms and created a default index.html that would communicate with the server and present a nice chat box for the user. here is the html code, just use this for your index.html if you want to. 
+#
+#
+# index.html 
+# [root@rhelservices createiso]# cat /var/www/html/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Llama 3.1 Chat Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #ffffff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: #005c3d;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+        .header h2 { margin: 0; font-weight: bold; font-size: 24px; }
+        .chat-box {
+            height: 500px;
+            overflow-y: scroll;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        .chat-input { display: flex; padding: 10px; }
+        .chat-input input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .chat-input button {
+            padding: 10px;
+            margin-left: 5px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .message { margin-bottom: 10px; }
+        .user { text-align: right; }
+        .bot { text-align: left; }
+        .typing { font-style: italic; color: #888; }
+        .center-image {
+            display: block;
+            margin-top: 20px;
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <div class="header">
+            <h2>ChatAPG</h2>
+        </div>
+        <div class="chat-box" id="chatBox">
+            <div id="typingIndicator" class="message bot typing" style="display: none;">ChatAPG: Typing...</div>
+        </div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Type your message here..." />
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <!-- Image as a link -->
+    <a href="https://www.hpe.com/ai" target="_blank">
+        <img src="hpe-nvidia-discover-2024.png" alt="HPE NVIDIA Discover 2024" class="center-image">
+    </a>
+
+    <script>
+        const chatBox = document.getElementById('chatBox');
+        const userInput = document.getElementById('userInput');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            addMessage('user', `AI-User: ${message}`);
+            userInput.value = '';
+
+            // Show typing indicator
+            typingIndicator.style.display = 'block';
+
+            try {
+                const response = await fetchLlamaResponse(message);
+                // Hide typing indicator
+                typingIndicator.style.display = 'none';
+                addMessage('bot', `ChatAPG: ${response}`);
+            } catch (error) {
+                console.error('Error:', error);
+                // Hide typing indicator
+                typingIndicator.style.display = 'none';
+                addMessage('bot', 'ChatAPG: Sorry, an error occurred.');
+            }
+        }
+
+        function addMessage(sender, message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', sender);
+            messageElement.textContent = message;
+            chatBox.insertBefore(messageElement, typingIndicator);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return messageElement;
+        }
+
+        async function fetchLlamaResponse(message) {
+            const requestData = {
+                model: "meta/llama-3.1-8b-instruct",
+                messages: [{ role: "user", content: message }],
+                max_tokens: 1000
+            };
+
+            const response = await fetch('http://llama-service-nvidia-gpu-operator.apps.ocp.psdc.lan/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+
+</body>
+</html>
+
+
+
+# Hope you got it working, email me if you need help. lincoln.tidwell@hpe.com 
+##INSTALL OPEN-WEBUI
+
+First create a PV for it to use. 
+ 
+[root@rhelservices new]# cat nfs3_pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv0003-nfs
+spec:
+  capacity:
+    storage: 250Gi
+  accessModes:
+  - ReadWriteMany
+  nfs:
+    path: /home/webui
+    server: 10.0.31.100
+  persistentVolumeReclaimPolicy: Retain
+
+# oc apply nfs3_pv.yaml 
+## now create a namespace  and apply pvc to claim that pv with our new namespace
+# oc create namespace open-webui 
+# oc apply -f open-webui-pvc.yaml
+# cat open-webui-pvc.yaml
+ apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-pvc
+  namespace: open-webui  # Change this to the appropriate namespace if needed
+spec:
+  accessModes:
+    - ReadWriteMany  # Adjust based on your PV's access mode
+  resources:
+    requests:
+      storage: 250Gi  # Adjust the size according to your PV capacity
+  volumeName: pv0003-nfs  # Specify the name of your existing PV
+  storageClassName: ""  # Specify the NFS storage class
+
+## check to make sure that both the storage and the pvc are active. 
+get a clone of the open-webui depot and copy it locally- 
+# git clone https://github.com/open-webui/open-webui.git
+# cd open-webui/kubernetes/manifest/base
+# modify the file webui-deployment.yaml as needed to ensure names are what you want 
+# apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui-deployment
+  namespace: open-webui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-webui
+  template:
+    metadata:
+      labels:
+        app: open-webui
+    spec:
+      containers:
+      - name: open-webui
+        image: ghcr.io/open-webui/open-webui:main
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "500Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        env:
+        - name: OLLAMA_BASE_URL
+          value: "http://ollama-service.open-webui.svc.cluster.local:11434" # we aren't using this one, but we can leave it in the file. 
+        tty: true
+        volumeMounts:
+        - name: webui-volume
+          mountPath: /app/backend/data
+      volumes:
+      - name: webui-volume
+        persistentVolumeClaim:
+          claimName: open-webui-pvc
+
+# 
+#now deploy the container for open-webui
+#oc apply -f webui-deployment.yaml 
+# create a key/value secret and ENV variable in deployment 
+# webui-secret - key is just a string. 
+# WEBUI_SECRET_KEY = mykey
+# start and stop pod to ensure it is started 
+# now create a service 
+# oc apply open-webui-svc.yaml 
+[root@rhelservices new]# cat open-webui-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: open-webui-service
+  labels:
+    app: open-webui
+spec:
+  type: ClusterIP  # This allows external access through the node's IP
+  ports:
+    - port: 80          # The port that will be exposed
+      targetPort: 8080    # The port on the container to forward traffic to
+      protocol: TCP
+      # nodePort is optional; if not specified, OpenShift will assign one automatically.
+      #nodePort: 30000      # Optional: Specify a custom NodePort (within range 30000-32767)
+  selector:
+    app: open-webui             # Ensure this matches your deployment's labels
+
+## check to see service is available 
+# oc get svc 
+## now expose the service 
+# oc exposer service/open-webui-service
+## now check for routes
+# oc get routes 
+# ## connect to route shown oin browser and start setting up your open-webui instance. 
+#
+http://chatapg.apps.ocp.psdc.lan/
+http://open-webui-service-open-webui.apps.ocp.psdc.lan/
+

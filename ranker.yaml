@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ranker-model #PV namae
+spec:
+  capacity:
+    storage: 10Gi # Size of Storage Volume 
+  accessModes:
+  - ReadWriteMany
+  nfs:
+    path: /home/nfs # NFS Share from exports
+    server: 10.0.31.100 # NFS Server IP
+  persistentVolumeReclaimPolicy: Retain
+

@@ -1,0 +1,76 @@
+apiVersion: v1beta1
+kind: AgentConfig
+metadata:
+  name: dagocp
+rendezvousIP: 192.168.60.160 # THIS IS MY API VIP 
+hosts:
+  - hostname: dagocp1.rdc60.lan 
+    role: master
+    interfaces:
+      - name: ens33
+        macAddress: 00:0c:29:d8:8d:82
+    rootDeviceHints:
+      minSizeGigabytes: 800 
+    networkConfig:
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:0c:29:d8:8d:82
+          ipv4:
+            enabled: true
+            dhcp: false
+            address: 
+              - ip: 192.168.60.154
+                prefix-length: 16
+      dns-resolver:
+        config:
+          server:
+            - 192.168.60.10
+  - hostname: dagocp2.rdc60.lan
+    role: master
+    interfaces:
+      - name: ens33
+        macAddress: 00:0c:29:8e:8d:97
+    rootDeviceHints:
+      minSizeGigabytes: 800
+    networkConfig:
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:0c:29:8e:8d:97
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.60.155
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.60.10
+
+  - hostname: dagocp3.rdc60.lan
+    role: master
+    interfaces:
+      - name: ens33
+        macAddress: 00:0c:29:41:b8:9b
+    rootDeviceHints:
+      minSizeGigabytes: 800
+    networkConfig:
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:0c:29:41:b8:9b
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.60.156
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.60.10

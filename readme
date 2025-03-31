@@ -1,0 +1,147 @@
+run the following command 
+
+# ./openshift-install agent create image
+#
+# install nfd operators
+# install nvidia gpu operator
+# 1- create storage persistent volume - I used NFS 
+# oc apply -f nfs_pv.yaml  (Edit file as needed to connect to your NFS server:/share)
+# oc get pv pv0001    (verify it shows up as available) 
+#
+#
+# Then we need to create a defuakt storage class that will point to our nfs storage pv 
+# oc apply -f nfs-storageclass.yaml
+# oc get sc   (see that is is created and shows "default") 
+#
+#
+#Now let's create the registry 
+#ensure image registry operator is installed using GUI or with cmd 
+# oc get pods -n openshift-image-registry
+#
+#Set Management State to Managed:
+#The Image Registry Operator may initially be set to Removed. Change it to Managed:
+#
+# oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}'
+#
+#Configure Storage Using Your PVC:
+#Assuming you have a PVC named registry-storage, patch the configuration to use it:
+# oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"pvc":{"claim":"registry-storage"}}}}'
+#
+#
+#Enable Default Route (Optional):
+#If you want external access to your registry, enable the default route:
+# oc patch configs.imageregistry.operator.openshift.io/cluster --type merge --patch '{"spec":{"defaultRoute":true}}'
+oc login -u ocpadmin --insecure-skip-tls-verify
+TEST GPU oc exec nvidia-driver-daemonset-417.94.202410211619-0-dbpr4 -- nvidia-smi
+NGC_API_KEY=APIKEYFROMNVIDIA IN ENV FOR DEPLOYMENT
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .chat-container {
+            max-width: 400px;
+            margin: auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .chat-box {
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        .chat-input {
+            display: flex;
+            padding: 10px;
+        }
+        .chat-input input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .chat-input button {
+            padding: 10px;
+            margin-left: 5px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-box" id="chatBox"></div>
+    <div class="chat-input">
+        <input type="text" id="userInput" placeholder="Type your message here..." />
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+    async function sendMessage() {
+        const userInput = document.getElementById('userInput');
+        const message = userInput.value;
+
+        // Add user message to chat box
+        addMessageToChatBox("User", message);
+        
+        // Clear the input field
+        userInput.value = '';
+
+        // Prepare data for the API call
+        const requestData = {
+            model: "meta/llama-3.1-8b-instruct",
+            messages: [{ role: "user", content: message }],
+            max_tokens: 64
+        };
+
+        try {
+            const response = await fetch('http://10.130.1.148:8000/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const data = await response.json();
+            
+            // Add the response message to chat box
+            addMessageToChatBox("Bot", data.choices[0].message.content);
+            
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    function addMessageToChatBox(sender, message) {
+        const chatBox = document.getElementById('chatBox');
+        const newMessage = document.createElement('div');
+        newMessage.textContent = `${sender}: ${message}`;
+        chatBox.appendChild(newMessage);
+        
+        // Scroll to the bottom of the chat box
+        chatBox.scrollTop = chatBox.scrollHeight; 
+    }
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,400 @@
+############################# NOTE
+
+Let's break down the key concepts and steps in the updated script in simple terms:
+
+### 1. **Dataset and Data Loading**
+- **CIFAR-10 Dataset**: We're using a dataset called CIFAR-10, which contains 60,000 small images across 10 different categories (like airplanes, cars, birds, etc.).
+- **Subset of Images**: Instead of using all 60,000 images, we only use half (30,000 images) for training. This is done to speed up the training process and reduce computational load.
+
+### 2. **Model Definition**
+- **Convolutional Neural Network (CNN)**: We define a CNN, which is a type of model that is very good at recognizing patterns in images. It consists of layers that process the images to learn features (like edges, shapes, etc.) and make predictions about what the image contains.
+
+### 3. **Training Process**
+- **Training Loop**: The model learns from the training data through a process called training. We do this in "epochs," which are complete passes through the training dataset.
+- **Forward Pass**: In each step of training, we send a batch of images through the model to get predictions.
+- **Loss Calculation**: We compare the model's predictions to the actual labels (what the image really is) using a mathematical function called "loss." This tells us how wrong the predictions are.
+- **Backward Pass (Backpropagation)**: We then adjust the model's parameters (weights) to reduce this loss using a method called backpropagation. This helps the model learn from its mistakes.
+
+### 4. **Logging and Monitoring**
+- **TensorBoard**: We use TensorBoard to log and visualize how well our model is learning over time. It allows us to see things like:
+  - The loss during training (how much error the model has).
+  - The accuracy of the model after each epoch.
+
+### 5. **Evaluating Performance**
+- **Testing Accuracy**: After each epoch of training, we check how well our model performs on a separate set of images (the test dataset). This helps us understand if our model is learning effectively.
+- **Target Accuracy**: We set a goal for our model to achieve at least 90% accuracy on the test dataset. If it hasn't reached this accuracy, we continue training.
+
+### 6. **Stopping Condition**
+- The training continues until our model achieves the desired accuracy (90%). This means that we keep adjusting and improving the model until it performs well enough on unseen data.
+
+### Summary
+In summary, this script trains a neural network on half of a popular image dataset, monitors its learning progress using TensorBoard, and continues training until it reaches a specified level of accuracy on test data. The goal is to create a model that can accurately identify objects in images based on what it has learned during training.
+
+
+#############################ALL of the images
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
+import numpy as np
+import torchvision.utils as vutils
+import torch.nn.functional as F
+
+# Define transformations for the training and testing sets
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+])
+
+# Load CIFAR-10 dataset (using all images)
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+
+# DataLoader for training and test sets
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
+testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False, num_workers=2)
+
+# Define the CNN architecture
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+# Check if GPU is available and set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Initialize the network and move it to the GPU if available
+net = Net().to(device)
+
+# Define loss function and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+
+# Initialize TensorBoard writer
+writer = SummaryWriter('runs/experiment')
+
+# Training loop with logging to TensorBoard and accuracy check
+target_accuracy = 90.0  # Target accuracy in percentage
+
+current_accuracy = 0.0
+
+while current_accuracy < target_accuracy:
+    running_loss = 0.0
+    
+    for epoch in range(10):  # You can adjust the number of epochs as needed
+        for i, data in enumerate(trainloader):
+            inputs, labels = data[0].to(device), data[1].to(device)
+
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+            # Log every 100 batches
+            if (i + 1) % 100 == 0:
+                avg_loss = running_loss / 100
+                writer.add_scalar('training loss', avg_loss, epoch * len(trainloader) + i)
+                running_loss = 0.0
+
+    # Evaluate model performance on test dataset after each epoch
+    net.eval()  
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for data in testloader:
+            images, labels = data[0].to(device), data[1].to(device)
+            outputs = net(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    current_accuracy = (100 * correct / total)
+    print(f'Accuracy of the network on the test images: {current_accuracy:.2f}%')
+
+writer.close()  # Close the TensorBoard writer
+
+# Display a batch of training images (optional)
+dataiter = iter(trainloader)
+images, labels = next(dataiter)
+
+def imshow(img):
+    img = img / 2 + 0.5  
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.axis('off')
+    plt.show()
+
+imshow(vutils.make_grid(images))
+
+
+
+
+
+#############################1/2 of the images 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
+import numpy as np
+import torchvision.utils as vutils
+import torch.nn.functional as F
+from torch.utils.data import Subset
+
+# Define transformations for the training and testing sets
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+])
+
+# Load CIFAR-10 dataset
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+
+# Subset the training set to use half of the images
+num_samples = len(trainset) // 2  # Half the number of samples
+indices = list(range(len(trainset)))
+subset_indices = indices[:num_samples]  # Get the first half indices
+train_subset = Subset(trainset, subset_indices)
+
+trainloader = torch.utils.data.DataLoader(train_subset, batch_size=64, shuffle=True, num_workers=2)
+testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False, num_workers=2)
+
+# Define the CNN architecture
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+# Check if GPU is available and set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Initialize the network and move it to the GPU if available
+net = Net().to(device)
+
+# Define loss function and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+
+# Initialize TensorBoard writer
+writer = SummaryWriter('runs/experiment')
+
+# Training loop with logging to TensorBoard and accuracy check
+target_accuracy = 90.0  # Target accuracy in percentage
+
+current_accuracy = 0.0
+
+while current_accuracy < target_accuracy:
+    running_loss = 0.0
+    
+    for epoch in range(10):  # You can adjust the number of epochs as needed
+        for i, data in enumerate(trainloader):
+            inputs, labels = data[0].to(device), data[1].to(device)
+
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+            # Log every 100 batches
+            if (i + 1) % 100 == 0:
+                avg_loss = running_loss / 100
+                writer.add_scalar('training loss', avg_loss, epoch * len(trainloader) + i)
+                running_loss = 0.0
+
+    # Evaluate model performance on test dataset after each epoch
+    net.eval()  
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for data in testloader:
+            images, labels = data[0].to(device), data[1].to(device)
+            outputs = net(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    current_accuracy = (100 * correct / total)
+    print(f'Accuracy of the network on the test images: {current_accuracy:.2f}%')
+
+writer.close()  # Close the TensorBoard writer
+
+# Display a batch of training images (optional)
+dataiter = iter(trainloader)
+images, labels = next(dataiter)
+
+def imshow(img):
+    img = img / 2 + 0.5  
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.axis('off')
+    plt.show()
+
+imshow(vutils.make_grid(images))
+
+
+
+##############################1/10 of the images 
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
+import numpy as np
+import torchvision.utils as vutils
+import torch.nn.functional as F
+from torch.utils.data import Subset
+
+# Define transformations for the training and testing sets
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+])
+
+# Load CIFAR-10 dataset
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+
+# Subset the training set to use 1/10 of the images (6,000 images)
+num_samples = len(trainset) // 10  # 1/10 of the total number of samples (60,000)
+indices = list(range(len(trainset)))
+subset_indices = indices[:num_samples]  # Get the first 6,000 indices
+train_subset = Subset(trainset, subset_indices)
+
+trainloader = torch.utils.data.DataLoader(train_subset, batch_size=64, shuffle=True, num_workers=2)
+testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False, num_workers=2)
+
+# Define the CNN architecture
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+# Check if GPU is available and set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Initialize the network and move it to the GPU if available
+net = Net().to(device)
+
+# Define loss function and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+
+# Initialize TensorBoard writer
+writer = SummaryWriter('runs/experiment')
+
+# Training loop with logging to TensorBoard and accuracy check
+target_accuracy = 90.0  # Target accuracy in percentage
+
+current_accuracy = 0.0
+
+while current_accuracy < target_accuracy:
+    running_loss = 0.0
+    
+    for epoch in range(10):  # You can adjust the number of epochs as needed
+        for i, data in enumerate(trainloader):
+            inputs, labels = data[0].to(device), data[1].to(device)
+
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+            # Log every 100 batches
+            if (i + 1) % 100 == 0:
+                avg_loss = running_loss / 100
+                writer.add_scalar('training loss', avg_loss, epoch * len(trainloader) + i)
+                running_loss = 0.0
+
+    # Evaluate model performance on test dataset after each epoch
+    net.eval()  
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for data in testloader:
+            images, labels = data[0].to(device), data[1].to(device)
+            outputs = net(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    current_accuracy = (100 * correct / total)
+    print(f'Accuracy of the network on the test images: {current_accuracy:.2f}%')
+
+writer.close()  # Close the TensorBoard writer
+
+# Display a batch of training images (optional)
+dataiter = iter(trainloader)
+images, labels = next(dataiter)
+
+def imshow(img):
+    img = img / 2 + 0.5  
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.axis('off')
+    plt.show()
+
+imshow(vutils.make_grid(images))
+

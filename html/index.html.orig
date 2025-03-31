@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Llama 3.1 Chat Interface</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #f4f4f4; 
+            padding: 20px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chat-container { 
+            width: 100%;
+            max-width: 800px; 
+            border: 1px solid #ccc; 
+            border-radius: 5px; 
+            background-color: #ffffff; 
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); 
+        }
+        .header { 
+            background-color: #005c3d; 
+            color: white; 
+            padding: 10px; 
+            text-align: center; 
+            border-top-left-radius: 5px; 
+            border-top-right-radius: 5px; 
+        }
+        .header h2 { margin: 0; font-weight: bold; font-size: 24px; }
+        .chat-box { 
+            height: 500px; 
+            overflow-y: scroll; 
+            padding: 10px; 
+            border-bottom: 1px solid #ccc; 
+        }
+        .chat-input { display: flex; padding: 10px; }
+        .chat-input input { 
+            flex-grow: 1; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 5px; 
+        }
+        .chat-input button { 
+            padding: 10px; 
+            margin-left: 5px; 
+            background-color: #5cb85c; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        .message { margin-bottom: 10px; }
+        .user { text-align: right; }
+        .bot { text-align: left; }
+        .typing { font-style: italic; color: #888; }
+        .center-image {
+            display: block;
+            margin-top: 20px;
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <div class="header">
+            <h2>ChatAPG</h2>
+        </div>
+        <div class="chat-box" id="chatBox">
+            <div id="typingIndicator" class="message bot typing" style="display: none;">ChatAPG: Typing...</div>
+        </div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Type your message here..." />
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <!-- Image as a link -->
+    <a href="https://www.hpe.com/ai" target="_blank">
+        <img src="hpe-nvidia-discover-2024.png" alt="HPE NVIDIA Discover 2024" class="center-image">
+    </a>
+
+    <script>
+        const chatBox = document.getElementById('chatBox');
+        const userInput = document.getElementById('userInput');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            addMessage('user', `AI-User: ${message}`);
+            userInput.value = '';
+
+            // Show typing indicator
+            typingIndicator.style.display = 'block';
+
+            try {
+                const response = await fetchLlamaResponse(message);
+                // Hide typing indicator
+                typingIndicator.style.display = 'none';
+                addMessage('bot', `ChatAPG: ${response}`);
+            } catch (error) {
+                console.error('Error:', error);
+                // Hide typing indicator
+                typingIndicator.style.display = 'none';
+                addMessage('bot', 'ChatAPG: Sorry, an error occurred.');
+            }
+        }
+
+        function addMessage(sender, message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', sender);
+            messageElement.textContent = message;
+            chatBox.insertBefore(messageElement, typingIndicator);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return messageElement;
+        }
+
+        async function fetchLlamaResponse(message) {
+            const requestData = {
+                model: "meta/llama-3.1-8b-instruct",
+                messages: [{ role: "user", content: message }],
+                max_tokens: 1000
+            };
+
+            const response = await fetch('http://llama-service-nvidia-gpu-operator.apps.ocp.psdc.lan/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+
+</body>
+</html>
+

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-data
+  namespace: nvidia-gpu-operator  # Change this to the appropriate namespace if needed
+spec:
+  accessModes:
+    - ReadWriteMany  # Adjust based on your PV's access mode
+  resources:
+    requests:
+      storage: 250Gi  # Adjust the size according to your PV capacity
+  volumeName: ollama-data  # Specify the name of your existing PV
+  storageClassName: ""  # Specify the NFS storage class
+

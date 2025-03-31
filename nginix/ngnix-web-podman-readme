@@ -1,0 +1,21 @@
+#cp index.html tnd any html or images needed to CWD
+# create Dockerfile in CWD 
+root@rhelservices html]# cat Dockerfile
+FROM nginx
+
+COPY . /usr/share/nginx/html
+
+RUN mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp /var/cache/nginx/scgi_temp \
+    && chmod 700 /var/cache/nginx/*_temp \
+    && chown -R nginx:nginx /var/cache/nginx
+
+EXPOSE 80
+
+[root@rhelservices html]#
+
+# creat a dockerhub account and then login to it. 
+# docker login -u lincolnwins
+# podman build -t lincolnwins/www:latest .i
+# podman push lincolnwins/www:latest     -THIS PUSHES THE CONTAINER TO DOCKERHUB
+
+creat a new container image using develop in Openshift gui that points to your repo on dockerhub, you may have to modify the path to ensure its putting your name in the path for the Deployment. check Deoplyment/Edit Deployment while in Admnistrator mode in gui.  

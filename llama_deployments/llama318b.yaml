@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama318b-deployment
+  namespace: nvidia-gpu-operator  # Replace with your target namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llama318b
+  template:
+    metadata:
+      labels:
+        app: llama318b
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: gpuworker1.psdc.lan  # Ensure it runs on the specific node
+      imagePullSecrets:
+      - name: nvsecret  # Reference to the created secret
+      containers:
+      - name: llama318b-container
+        image: nvcr.io/nim/meta/llama-3.1-8b-instruct:latest 
+        resources:
+          limits:
+            nvidia.com/gpu: 1  # Request one GPU
+          requests:
+            nvidia.com/gpu: 1  # Request one GPU
+

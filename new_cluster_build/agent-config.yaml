@@ -1,0 +1,101 @@
+apiVersion: v1beta1
+kind: AgentConfig
+metadata:
+  name: ocp
+rendezvousIP: 10.0.31.201 # THIS IS MY API VIP 
+hosts:
+  - hostname: ocp1.psdc.lan 
+    role: master
+    interfaces:
+      - name: ens33
+        macAddress: 00:50:56:97:c3:0d
+    rootDeviceHints:
+      minSizeGigabytes: 800 
+    networkConfig:
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:50:56:97:c3:0d
+          ipv4:
+            enabled: true
+            dhcp: false
+            address: 
+              - ip: 10.0.31.201
+                prefix-length: 16
+      dns-resolver:
+        config:
+          server:
+            - 10.0.0.4      
+  - hostname: ocp2.psdc.lan
+    role: master
+    interfaces:
+      - name: ens33
+        macAddress: 00:50:56:97:8f:35
+    rootDeviceHints:
+      minSizeGigabytes: 800
+    networkConfig:
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:50:56:97:8f:35
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 10.0.31.202
+                prefix-length: 16
+      dns-resolver:
+        config:
+          server:
+            - 10.0.0.4
+
+  - hostname: ocp3.psdc.lan
+    role: master
+    interfaces:
+      - name: ens33
+        macAddress: 00:50:56:97:b9:9f
+    rootDeviceHints:
+      minSizeGigabytes: 800
+    networkConfig:
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:50:56:97:b9:9f
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 10.0.31.203
+                prefix-length: 16
+      dns-resolver:
+        config:
+          server:
+            - 10.0.0.4
+
+  - hostname: gpuworker1.psdc.lan
+    role: worker
+    interfaces:
+      - name: ens33
+        macAddress: 00:50:56:97:b1:d9
+    rootDeviceHints:
+      minSizeGigabytes: 800
+    networkConfig:
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:50:56:97:b1:d9
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 10.0.31.102
+                prefix-length: 16
+      dns-resolver:
+        config:
+          server:
+            - 10.0.0.4
+

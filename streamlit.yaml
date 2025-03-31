@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamlit-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: streamlit-app
+  template:
+    metadata:
+      labels:
+        app: streamlit-app
+    spec:
+      containers:
+      - name: streamlit-container
+        image: streamlit/streamlit:latest
+        ports:
+        - containerPort: 8501
+        volumeMounts:
+        - name: streamlit-config
+          mountPath: /app/streamlit_config.toml
+          subPath: streamlit_config.toml
+        securityContext:
+          allowPrivilegeEscalation: false               
+          capabilities:
+            drop:
+              - ALL                                   
+          runAsUser: 1000830000                       # Change this to a valid UID within allowed range.
+          runAsNonRoot: true                           
+          seccompProfile:
+            type: RuntimeDefault                       
+      volumes:
+      - name: streamlit-config
+        configMap:
+          name: streamlit-config
+

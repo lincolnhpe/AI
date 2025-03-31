@@ -1,0 +1,29 @@
+hosts: 
+  - hostname: gpuworker3.psdc.lan
+    interfaces:
+      - name: ens33
+        macAddress: 00:50:56:97:02:69
+    rootDeviceHints: 
+      minSizeGigabytes: 800
+    networkConfig: 
+      interfaces:
+        - name: ens33
+          type: ethernet
+          state: up
+          mac-address: 00:50:56:97:02:69
+          ipv4:
+            enabled: true
+            address:
+              - ip: 10.0.31.104
+                prefix-length: 16
+            dhcp: false
+      dns-resolver:
+        config:
+          server:
+            - 10.0.0.4
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: 10.0.0.1
+            next-hop-interface: ens33
+            table-id: 254

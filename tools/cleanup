@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Namespace where the pods are stuck
+NAMESPACE="nvidia-gpu-operator"
+
+# List of pods to force delete
+PODS=(
+  gpu-feature-discovery-zlbmq
+  nvidia-container-toolkit-daemonset-l6kgq
+  nvidia-dcgm-exporter-msddv
+  nvidia-dcgm-h69sc
+  nvidia-device-plugin-daemonset-w9lzw
+  nvidia-driver-daemonset-417.94.202410211619-0-5wnmj
+  nvidia-operator-validator-hldp2
+)
+
+echo "Force deleting Init/Running pods in namespace: $NAMESPACE"
+
+for pod in "${PODS[@]}"; do
+  echo "Force deleting pod: $pod"
+  oc delete pod "$pod" -n "$NAMESPACE" --grace-period=0 --force
+done
+
+echo "✅ All stuck pods removed."
+

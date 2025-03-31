@@ -1,0 +1,3 @@
+oc adm node-image create nodes-config.yaml
+oc adm node-image monitor --ip-addresses 192.168.60.157
+
