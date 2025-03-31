@@ -1,4 +1,4 @@
-#cp index.html tnd any html or images needed to CWD
+#cp index.html and any html or images needed to CWD
 # create Dockerfile in CWD 
 root@rhelservices html]# cat Dockerfile
 FROM nginx
