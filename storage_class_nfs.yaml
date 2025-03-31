@@ -1,0 +1,31 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: nfs-csi
+  uid: 3a6a514b-465a-4d2a-9f59-91f431361fb0
+  resourceVersion: '38145'
+  creationTimestamp: '2025-02-13T05:46:59Z'
+  managedFields:
+    - manager: kubectl-create
+      operation: Update
+      apiVersion: storage.k8s.io/v1
+      time: '2025-02-13T05:46:59Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:mountOptions': {}
+        'f:parameters':
+          .: {}
+          'f:server': {}
+          'f:share': {}
+        'f:provisioner': {}
+        'f:reclaimPolicy': {}
+        'f:volumeBindingMode': {}
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.60.100
+  share: /nfs
+reclaimPolicy: Delete
+mountOptions:
+  - hard
+  - nfsvers=4.1
+volumeBindingMode: Immediate
