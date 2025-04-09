@@ -491,3 +491,55 @@ spec:
 http://chatapg.apps.ocp.psdc.lan/
 http://open-webui-service-open-webui.apps.ocp.psdc.lan/
 
+########################## USING MIG TO SLICE YOUR GPU #############################
+Verify your GPU is working 
+# watch oc exec nvidia-driver-daemonset-417.94.202502181421-0-2lpf -- nvidia-smi
+See what MIG options your card supports
+# [root@dagred1 ~]# watch oc exec nvidia-driver-daemonset-417.94.202502181421-0-2lpfk -- nvidia-smi mig -lgip
+Divide your MIG by whatever your choose from the options 
+# MIG_CONFIGURATION=all-2g.24gb #NOTE the addition of "all-" this is required. 
+Now apply the MIG label to your GPU node
+# oc label node/daggpuworker1.rdc60.lan nvidia.com/mig.config=$MIG_CONFIGURATION --overwrite
+Next go kill the main gpu-operator pod to restart the driver and MIG connection (use CLi or GUI), takes a few minutes
+Next check your GPU again - NOW you should see 3 MIG devices, this means we can assign 3 GPU slices to containers. 
+[root@dagred1 NIM]# oc exec nvidia-driver-daemonset-417.94.202502181421-0-2lpfk -- nvidia-smi
+Wed Apr  9 02:39:01 2025
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.124.06             Driver Version: 570.124.06     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 NVL                On  |   00000000:26:00.0 Off |                   On |
+| N/A   61C    P0             80W /  400W |      87MiB /  95830MiB |     N/A      Default |
+|                                         |                        |              Enabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| MIG devices:                                                                            |
++------------------+----------------------------------+-----------+-----------------------+
+| GPU  GI  CI  MIG |                     Memory-Usage |        Vol|        Shared         |
+|      ID  ID  Dev |                       BAR1-Usage | SM     Unc| CE ENC  DEC  OFA  JPG |
+|                  |                                  |        ECC|                       |
+|==================+==================================+===========+=======================|
+|  0    3   0   0  |              29MiB / 22144MiB    | 32      0 |  2   0    2    0    2 |
+|                  |                 0MiB / 32767MiB  |           |                       |
++------------------+----------------------------------+-----------+-----------------------+
+|  0    5   0   1  |              29MiB / 22144MiB    | 32      0 |  2   0    2    0    2 |
+|                  |                 0MiB / 32767MiB  |           |                       |
++------------------+----------------------------------+-----------+-----------------------+
+|  0    6   0   2  |              29MiB / 22144MiB    | 32      0 |  2   0    2    0    2 |
+|                  |                 0MiB / 32767MiB  |           |                       |
++------------------+----------------------------------+-----------+-----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+
+
