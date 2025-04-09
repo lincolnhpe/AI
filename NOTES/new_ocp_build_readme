@@ -541,5 +541,106 @@ Wed Apr  9 02:39:01 2025
 |  No running processes found                                                             |
 +-----------------------------------------------------------------------------------------+
 
+######################### INSTALL VECTOR DB QDRANT #############################
+
+First we need to install the Local-storage operator
+then we need to create some space on our local node to use since it should be an SSD drive, 
+
+# oc project openshift-local-storage
+Next find local available space 
+Now we create a priveledged POD to let us create directory even though CoreOs is immutable - 
+
+#####
+# Create the pod
+oc run prep --image=registry.access.redhat.com/ubi8/ubi --restart=Never \
+  --overrides='{
+    "apiVersion": "v1",
+    "spec": {
+      "hostPID": true,
+      "hostIPC": true,
+      "hostNetwork": true,
+      "containers": [{
+        "name": "prep",
+        "image": "registry.access.redhat.com/ubi8/ubi",
+        "command": ["sleep", "3600"],
+        "securityContext": {
+          "privileged": true
+        },
+        "volumeMounts": [{
+          "name": "host",
+          "mountPath": "/host"
+        }]
+      }],
+      "volumes": [{
+        "name": "host",
+        "hostPath": {
+          "path": "/"
+        }
+      }],
+      "nodeSelector": {
+        "kubernetes.io/hostname": "daggpuworker1.rdc60.lan"
+      }
+    }
+  }'
+
+# Go inside the container
+oc rsh prep
+mkdir -p /var/local/qdrant-data
+chmod 777 /var/local/qdrant-data
+exit
+
+# Clean up
+oc delete pod prep
 
 
+###################
+Make our PV using this local storage 
+#
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qdrant-local-pv
+spec:
+  capacity:
+    storage: 250Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-qdrant
+  local:
+    path: /var/local/qdrant-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - daggpuworker1.rdc60.lan
+#
+ Now we apply it 
+# oc apply -f qdrant_storage.yaml
+#
+Check to see if it got made  
+# oc get pv #(look for qdrant-local-pv) 
+
+Now we need to create a PVC to use it 
+# oc create namespace qdrant
+###
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qdrant-pvc
+  namespace: qdrant
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 250Gi
+  storageClassName: local-qdrant
+  volumeName: qdrant-local-pv
+
+#

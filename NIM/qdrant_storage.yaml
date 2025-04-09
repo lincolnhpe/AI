@@ -1,20 +1,23 @@
-apiVersion: local.storage.openshift.io/v1
-kind: LocalVolume
+apiVersion: v1
+kind: PersistentVolume
 metadata:
-  name: qdrant-local-volume
-  namespace: openshift-local-storage
+  name: qdrant-local-pv
 spec:
-  storageClassDevices:
-    - storageClassName: qdrant-local
-      volumeMode: Filesystem
-      fsType: xfs
-      devicePaths: []
-      mountDir: /mnt/localstorage/qdrant
-  nodeSelector:
-    nodeSelectorTerms:
-      - matchExpressions:
-          - key: kubernetes.io/hostname
-            operator: In
-            values:
-              - daggpuworker1.rdc60.lan
+  capacity:
+    storage: 250Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-qdrant
+  local:
+    path: /var/local/qdrant-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - daggpuworker1.rdc60.lan
 
