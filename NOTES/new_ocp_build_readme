@@ -797,4 +797,5 @@ spec:
 now apply it 
 # oc apply -f qdrant.https.yaml
 #
-
+# oc get routes 
+tryin connecting to the dashboard https://qdrant-route-qdrant.apps.dagocp.rdc60.lan/dashboard
