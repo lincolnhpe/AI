@@ -587,6 +587,9 @@ oc run prep --image=registry.access.redhat.com/ubi8/ubi --restart=Never \
 oc rsh prep
 mkdir -p /var/local/qdrant-data
 chmod 777 /var/local/qdrant-data
+mkdir -p /var/local/qdrant-data/snap
+chmod 777 /var/local/qdrant-data/snap
+
 exit
 
 # Clean up
@@ -644,3 +647,154 @@ spec:
   volumeName: qdrant-local-pv
 
 #
+
+Now we apply our deployment yaml file for qdrant 
+
+#apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant-service
+  namespace: qdrant
+spec:
+  selector:
+    app: qdrant
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant
+  namespace: qdrant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:latest
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+          env:
+            - name: QDRANT__STORAGE__SNAPSHOTS_PATH
+              value: /qdrant/storage/snap
+          volumeMounts:
+            - mountPath: /qdrant/storage
+              name: qdrant-storage
+      volumes:
+        - name: qdrant-storage
+          persistentVolumeClaim:
+            claimName: qdrant-pvc
+# this should ceate the service and the deployment
+# oc project qdrant 
+# oc get svc 
+
+We need to expose the service so we can reach it out of openshift
+# [root@dagred1 NIM]# oc expose service qdrant-service -n qdrant
+
+oc get route qdrant-service -n qdrant
+
+##############################
+When you expose a service using oc expose, OpenShift creates a Route — which is like a public-facing URL.
+
+HTTPS termination means:
+
+OpenShift handles the HTTPS encryption and decryption at the Route level before passing the request to your app.
+
+🧠 Why do this?
+Your app (like Qdrant) may only support HTTP, but users or other systems want to connect securely over HTTPS.
+
+So instead of modifying Qdrant to speak HTTPS:
+
+OpenShift automatically uses TLS certs
+
+It handles the secure HTTPS connection
+
+Then forwards the request as HTTP to your internal service
+
+🔧 How it works:
+When creating or editing a Route, you can set:
+
+yaml
+Copy
+Edit
+tls:
+  termination: edge
+This tells OpenShift to:
+
+Accept HTTPS from clients
+
+Terminate the SSL/TLS connection at the router
+
+Forward traffic to your app using plain HTTP
+
+🔐 Example Route YAML with HTTPS Termination:
+yaml
+Copy
+Edit
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: qdrant-service
+  namespace: qdrant
+spec:
+  to:
+    kind: Service
+    name: qdrant-service
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+This means:
+
+Users hit https://qdrant-service-yourdomain.com
+
+OpenShift decrypts it
+
+Forwards http://qdrant-service.qdrant.svc.cluster.local:6333 internally
+
+✅ Benefits:
+No need to manage TLS certs inside your app
+
+Secure external access
+
+Works with tools that require HTTPS (e.g., browsers, AI services)
+
+
+##################################
+create this qdrant.https.yaml file 
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: qdrant-route
+  namespace: qdrant
+spec:
+  to:
+    kind: Service
+    name: qdrant-service
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+
+
+###############
+now apply it 
+# oc apply -f qdrant.https.yaml
+#
+
