@@ -1,0 +1,30 @@
+# Default values for ainvr.
+
+ainvr:
+  image: "nvcr.io/partners/ironyun/ainvr-app:3.1.0-3"
+  ports:
+    http: 30080
+    https: 30443
+  persistence:
+    storageClass: "nfs-csi"
+    size: 1Gi
+
+nvidia:
+  version: 1
+  metropolis:
+    nodes:
+      - label:
+          key: "kubernetes.io/hostname"
+          value: "node1"
+        gpus:
+          - id: 0
+            cams: 25
+
+global:
+  nvidia:
+    version: 1
+    docker:
+      registry: "nvcr.io"
+      username: "$oauthtoken"
+      password: "secret"
+

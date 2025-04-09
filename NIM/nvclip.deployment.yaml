@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: llama318b-deployment
-  namespace: llama318b  # Replace with your target namespace
+  name: nvclip
+  namespace: nvclip  # Replace with your target namespace
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: llama318b
+      app: nvclip
   template:
     metadata:
       labels:
-        app: llama318b
+        app: nvclip
     spec:
       nodeSelector:
-        kubernetes.io/hostname: daggpuworker1.rdc60.lan # Ensure it runs on the specific node
+        kubernetes.io/hostname: daggpuworker1.rdc60.lan  # Ensure it runs on the specific node
       imagePullSecrets:
       - name: nvsecret  # Reference to the created secret
       containers:
-      - name: llama318b-container
-        image: nvcr.io/nim/meta/llama-3.1-8b-instruct:latest 
+      - name: nvclip
+        image: nvcr.io/nim/nvidia/nvclip:2.0.0
         resources:
           limits:
             nvidia.com/gpu: 1  # Request one GPU

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    com.ironyun.service: ainvr-log-pvc
+  name: ainvr-log-pvc
+spec:
+  storageClassName: nfs-csi
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}

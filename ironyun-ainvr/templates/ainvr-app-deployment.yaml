@@ -1,0 +1,79 @@
+{{- $chart := .Chart -}}
+{{- $values := .Values -}}
+{{- range $index, $node := $values.nvidia.metropolis.nodes }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    ironyun.app: {{ $chart.Name }}
+    ironyun.version: {{ $chart.AppVersion }}
+  labels:
+    com.ironyun.service: ainvr-app
+  name: ainvr-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      com.ironyun.service: ainvr-app
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        com.ironyun.service: ainvr-app
+    spec:
+      nodeSelector:
+        {{ $node.label.key }}: {{ $node.label.value | quote }}
+      containers:
+      - name: ainvr-app
+        image: {{ $values.ainvr.image }}
+        command: ['start_service']
+        env:
+        - name: CUDA_DEVICE_ORDER
+          value: PCI_BUS_ID
+        - name: CUDA_VISIBLE_DEVICES
+          value: "{{ range $index, $gpu := $node.gpus }}{{if ne $index 0}},{{end}}{{ $gpu.id }}{{ end }}"
+        - name: GPU_SETTINGS
+          value: '[{{ range $index, $gpu := $node.gpus }}{{if ne $index 0}},{{end}} {"gpuId": {{ $gpu.id }}, "decoders": {{ $gpu.cams }}, "gpuEncoders": 1, "clipEncoders": 1}{{ end }}]'
+        - name: TIMEZONE
+          value: Etc/UTC
+        ports:
+        - containerPort: 443
+        - containerPort: 80
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/9.5/main
+          name: ainvr-db-pvc
+        - mountPath: /usr/share/ainvr/data
+          name: ainvr-data-pvc
+        - mountPath: /etc/license
+          name: ainvr-license-pvc
+        - mountPath: /var/log/ainvr
+          name: ainvr-log-pvc
+        - mountPath: /etc/ssl/private
+          name: ainvr-secrets-pvc
+      imagePullSecrets:
+      - name: nvidia-registrykey-secret
+      restartPolicy: Always
+      volumes:
+      - name: ainvr-db-pvc
+        persistentVolumeClaim:
+          claimName: ainvr-db-pvc
+      - name: ainvr-data-pvc
+        persistentVolumeClaim:
+          claimName: ainvr-data-pvc
+      - name: ainvr-license-pvc
+        persistentVolumeClaim:
+          claimName: ainvr-license-pvc
+      - name: ainvr-log-pvc
+        persistentVolumeClaim:
+          claimName: ainvr-log-pvc
+      - name: ainvr-secrets-pvc
+        persistentVolumeClaim:
+          claimName: ainvr-secrets-pvc
+status: {}
+
+---
+{{- end }}
+

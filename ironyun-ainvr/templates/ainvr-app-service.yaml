@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    ironyun.app: {{ .Chart.Name }}
+    ironyun.version: {{ .Chart.AppVersion }}
+  labels:
+    com.ironyun.service: ainvr-app
+  name: ainvr-app
+spec:
+  type: NodePort
+  ports:
+  - name: "https"
+    port: 443
+    nodePort: {{ .Values.ainvr.ports.https }}
+  - name: "http"
+    port: 80
+    nodePort: {{ .Values.ainvr.ports.http }}
+  selector:
+    com.ironyun.service: ainvr-app
+status:
+  loadBalancer: {}

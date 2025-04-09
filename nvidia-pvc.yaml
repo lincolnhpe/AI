@@ -9,6 +9,6 @@ spec:
   resources:
     requests:
       storage: 250Gi  # Adjust the size according to your PV capacity
-  volumeName: pv0002-nfs  # Specify the name of your existing PV
-  storageClassName: ""  # Specify the NFS storage class
+  volumeName: ""  # Specify the name of your existing PV
+  storageClassName: nfs-csi  # Specify the NFS storage class
 

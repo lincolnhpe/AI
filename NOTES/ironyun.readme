@@ -1,0 +1,71 @@
+Step 1- Ensure you have:
+
+An NGC account: https://ngc.nvidia.com/
+
+Your NGC API Key: Get it from NGC > Setup > API Key
+
+Helm 3 installed - (if not use this) # curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+Access to your OpenShift cluster (via oc and kubectl)
+
+Step 2- Authenticate to NGC & Fetch the Chart
+Set your NGC API key as a Helm password
+# export NGC_API_KEY=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
+
+Step 3- Download package 
+#curl -L -u '$oauthtoken':$NGC_API_KEY \
+  https://helm.ngc.nvidia.com/partners/charts/ironyun-ainvr-1.0.1.tgz -o ironyun-ainvr-1.0.1.tgz
+# tar -xzf ironyun-ainvr-1.0.1.tgz
+# cd ironyun-ainvr
+
+Step 4- Create vaidio namespace in Openshift
+# oc create namespace vaidio
+
+Step 5 - Move or delete all PV .yaml files that will not be needed since we are using storageClass storage
+[root@dagred1 ironyun-ainvr]# ls templates/
+ainvr-app-deployment.yaml              ainvr-db-persistentvolumeclaim.yaml       ainvr-log-persistentvolumeclaim.yaml      _helpers.tpl
+ainvr-app-service.yaml                 ainvr-db-persistentvolume.yaml            ainvr-log-persistentvolume.yaml           nvidia-registrykey-secret.yaml
+ainvr-data-persistentvolumeclaim.yaml  ainvr-license-persistentvolumeclaim.yaml  ainvr-secrets-persistentvolumeclaim.yaml
+ainvr-data-persistentvolume.yaml       ainvr-license-persistentvolume.yaml       ainvr-secrets-persistentvolume.yaml
+[root@dagred1 ironyun-ainvr]# mkdir saveUnusedPVs
+[root@dagred1 ironyun-ainvr]# mv templates/*ume.y* saveUnusedPVs/
+[root@dagred1 ironyun-ainvr]# ls
+Chart.yaml  saveUnusedPVs  templates  values.yaml
+[root@dagred1 ironyun-ainvr]# cd templates/
+[root@dagred1 templates]# ls
+ainvr-app-deployment.yaml              ainvr-db-persistentvolumeclaim.yaml       ainvr-secrets-persistentvolumeclaim.yaml
+ainvr-app-service.yaml                 ainvr-license-persistentvolumeclaim.yaml  _helpers.tpl
+ainvr-data-persistentvolumeclaim.yaml  ainvr-log-persistentvolumeclaim.yaml      nvidia-registrykey-secret.yaml
+
+Step 6- Configure vaidio do use storageClass storage instead of Persistent Volumes for the dependent PVCs, edit the files in the output of the next command and replace the storageClassName: xxxxxxxx-xxx-xx with whatever your stroageClass name is. for example mine is nfs-csi
+
+BEFORE
+# grep -r "storageClassName" templates/
+./templates/ainvr-data-persistentvolumeclaim.yaml:  storageClassName: ainvr-data-sc
+./templates/ainvr-db-persistentvolumeclaim.yaml:  storageClassName: ainvr-db-sc
+./templates/ainvr-license-persistentvolumeclaim.yaml:  storageClassName: ainvr-license-sc
+./templates/ainvr-log-persistentvolumeclaim.yaml:  storageClassName: ainvr-log-sc
+./templates/ainvr-secrets-persistentvolumeclaim.yaml:  storageClassName: ainvr-secrets-sc
+
+AFTER
+[root@dagred1 templates]# grep -r "storageClassName" templates/
+./ainvr-data-persistentvolumeclaim.yaml:  storageClassName: nfs-csi
+./ainvr-db-persistentvolumeclaim.yaml:  storageClassName: nfs-csi
+./ainvr-license-persistentvolumeclaim.yaml:  storageClassName: nfs-csi
+./ainvr-log-persistentvolumeclaim.yaml:  storageClassName: nfs-csi
+./ainvr-secrets-persistentvolumeclaim.yaml:  storageClassName: nfs-csi
+
+Step 7- Allow privileged containers (once only)
+Run this to allow the pod to launch with privileged: true:
+
+# oc adm policy add-scc-to-user privileged -z default -n vaidio
+
+Step 8- Install the Helm chart 
+# helm install vaidio-release . -n vaidio --values values.yaml
+
+Step 9- Expose the service via OpenShift Route
+#oc expose svc ainvr-app -n vaidio
+
+Step 10- Check the route (you should get an accessible URL) 
+# oc get route -n vaidio
+

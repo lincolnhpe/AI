@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nvclip
+  namespace: nvclip
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nvclip
+  template:
+    metadata:
+      labels:
+        app: nvclip
+    spec:
+      containers:
+        - name: nvclip
+          image: nvcr.io/nim/nvidia/nvclip:2.0.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: nvsecret
+          env:
+            - name: NGC_API_KEY
+              value: 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
+            - name: NIM_CACHE_PATH
+              value: /tmp/nim-cache
+            - name: NIM_WORKSPACE
+              value: /opt/nim/workspace
+          resources:
+            limits:
+              nvidia.com/gpu: '1'
+            requests:
+              nvidia.com/gpu: '1'
+          volumeMounts:
+            - name: nim-cache
+              mountPath: /tmp/nim-cache
+            - name: nim-workspace
+              mountPath: /opt/nim/workspace
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      volumes:
+        - name: nim-cache
+          emptyDir: {}
+        - name: nim-workspace
+          emptyDir: {}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/hostname: daggpuworker1.rdc60.lan
+      imagePullSecrets:
+        - name: nvsecret
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+
