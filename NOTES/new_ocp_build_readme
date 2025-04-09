@@ -541,6 +541,60 @@ Wed Apr  9 02:39:01 2025
 |  No running processes found                                                             |
 +-----------------------------------------------------------------------------------------+
 
+
+
+################################ HOW TO INSTALL DIFFERENT SIZE MIGS ####################
+✅ Enable MIG Mode Now
+Run this:
+
+bash
+Copy
+Edit
+oc exec nvidia-driver-daemonset-417.94.202502181421-0-2lpfk -n nvidia-gpu-operator -- nvidia-smi -i 0 -mig 1
+You should get:
+
+vbnet
+Copy
+Edit
+Successfully enabled MIG mode for GPU 00000000:26:00.0. A reboot is required for the change to take effect.
+🔁 Then Reboot the Node Again
+bash
+Copy
+Edit
+oc debug node/daggpuworker1.rdc60.lan
+chroot /host
+reboot
+🔧 After Reboot – Create Your Custom MIG Layout
+Once the node comes back and MIG is active, verify it:
+
+bash
+Copy
+Edit
+oc exec <driver-pod> -n nvidia-gpu-operator -- nvidia-smi
+You should see MIG Mode: Enabled on the GPU.
+
+Then apply your MIG layout (36GB + 30GB + 30GB):
+
+bash
+Copy
+Edit
+oc exec <driver-pod> -n nvidia-gpu-operator -- nvidia-smi mig -i 0 -cgi 13,11,11 -C
+13 = 4g.36gb
+
+11 = 3g.30gb
+
+
+
+
+
+
+
+
+
+
+
+
+
 ######################### INSTALL VECTOR DB QDRANT #############################
 
 First we need to install the Local-storage operator
