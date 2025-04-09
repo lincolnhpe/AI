@@ -585,6 +585,13 @@ oc exec <driver-pod> -n nvidia-gpu-operator -- nvidia-smi mig -i 0 -cgi 13,11,11
 
 
 
+###########################################################
+#upu may need to modify your deployment yaml files for your LLM and other GPu apps to use something like this 
+#
+#            limits:
+              nvidia.com/mig-1g.24gb: '1'
+            requests:
+              nvidia.com/mig-1g.24gb: '1'
 
 
 
